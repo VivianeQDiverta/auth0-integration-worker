@@ -8,8 +8,10 @@ router.get('/generate-state', async (req, env) => {
 	const state = randomNumbers.reduce((acc, val) => acc + val.toString(16), '');
 
 	// store the state in the KV store with a 60 second TTL
-	// storing empty object for now but it could contain anything like a redirect URL to return the user to what they were doing
-	const value = JSON.stringify({});
+	// with values describing the app's state that can be added here
+	const value = JSON.stringify({
+		createdAt: Date.now(),
+	});
 	await env.STATE.put(state, value, { expirationTtl: 60 });
 	return new Response(
 		JSON.stringify({
@@ -49,6 +51,7 @@ router.get('/verify-state', async (req, env) => {
 				headers: {
 					'content-type': 'application/json',
 				},
+				status: 400,
 			}
 		);
 	}
@@ -58,7 +61,7 @@ router.get('/verify-state', async (req, env) => {
 
 	return new Response(
 		JSON.stringify({
-			state,
+			state: JSON.stringify(state), // return as string so that KurocoEdge can read it
 		}),
 		{
 			headers: {

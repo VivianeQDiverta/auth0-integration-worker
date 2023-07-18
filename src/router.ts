@@ -4,7 +4,7 @@ import { router as authRouter } from './auth';
 // now let's create a router (note the lack of "new")
 const router = Router({ base: '/api'});
 
-router.get('/auth/*', authRouter.handle);
+router.all('/auth/*', authRouter.handle);
 
 // 404 for everything else
 router.all('*', () => new Response('Not Found.', { status: 404 }));
