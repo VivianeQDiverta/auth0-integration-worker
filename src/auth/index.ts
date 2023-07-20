@@ -87,10 +87,30 @@ router.post('/extract-payload', async (req, env) => {
 		);
 	}
 
-	// verify auth0Token signature
+	// extract auth0 payload
 	const splitToken = auth0Token.split('.');
+	const auth0Payload = JSON.parse(atob(splitToken[1]));
+
+	// verify claims
+	const now = Math.floor(Date.now() / 1000);
+	if (auth0Payload.exp < now || auth0Payload.aud !== `https://${env.API_DOMAIN}/api/v1` || auth0Payload.iss !== `https://${env.AUTH0_DOMAIN}/`) {
+		return new Response(
+			JSON.stringify({
+				error: 'invalid auth0Token',
+			}),
+			{
+				headers: {
+					'content-type': 'application/json',
+				},
+			}
+		);
+	}
+
+	// verify auth0Token signature
 	const kid = JSON.parse(atob(splitToken[0])).kid;
 	const textEncoder = new TextEncoder();
+	// TODO: cache this request (jwks request)
+	// if the verification fails, invalidate the cache, retrieve the jwks and try the verification only once again
 	const jwksRes = await fetch(`https://${env.AUTH0_DOMAIN}/.well-known/jwks.json`);
 	const jwks = JSON.parse(await jwksRes.text());
 	const key = jwks.keys.find((k: any) => k.kid === kid);
@@ -109,7 +129,6 @@ router.post('/extract-payload', async (req, env) => {
 	const base64DecodedSignature = atob(splitToken[2].replace(/_/g, '/').replace(/-/g, '+'));
 	const signatureBuffer = Uint8Array.from(base64DecodedSignature.split(''), (c) => c.charCodeAt(0));
 	const dataBuffer = textEncoder.encode(splitToken[0] + '.' + splitToken[1]);
-
 	const auth0TokenVerified = await crypto.subtle.verify('RSASSA-PKCS1-v1_5', cryptoKey, signatureBuffer, dataBuffer);
 	if (!auth0TokenVerified) {
 		return new Response(
@@ -123,9 +142,6 @@ router.post('/extract-payload', async (req, env) => {
 			}
 		);
 	}
-
-	// extract auth0 payload
-	const auth0Payload = JSON.parse(atob(splitToken[1]));
 
 	return new Response(
 		JSON.stringify({

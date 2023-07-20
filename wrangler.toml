@@ -7,6 +7,7 @@ compatibility_date = "2023-07-10"
 # Docs: https://developers.cloudflare.com/workers/platform/environment-variables
 [vars]
 AUTH0_DOMAIN = "kuroco-edge-integration.jp.auth0.com"
+API_DOMAIN = "auth0-integration-worker.viviane.workers.dev"
 
 # Bind a KV Namespace. Use KV as persistent storage for small key-value pairs.
 # Docs: https://developers.cloudflare.com/workers/runtime-apis/kv
