@@ -87,8 +87,44 @@ router.post('/extract-payload', async (req, env) => {
 		);
 	}
 
+	// verify auth0Token signature
+	const textEncoder = new TextEncoder();
+	const jwksRes = await fetch(`https://${env.AUTH0_DOMAIN}/.well-known/jwks.json`);
+	const jwks = JSON.parse(await jwksRes.text());
+	const key = jwks.keys[0];
+	const cryptoKey = await crypto.subtle.importKey(
+		'jwk',
+		key,
+		{
+			name: 'RSASSA-PKCS1-v1_5',
+			hash: {
+				name: 'SHA-256',
+			},
+		},
+		false,
+		['verify']
+	);
+	const splitToken = auth0Token.split('.');
+	const base64DecodedSignature = atob(splitToken[2].replace(/_/g, '/').replace(/-/g, '+'));
+	const signatureBuffer = Uint8Array.from(base64DecodedSignature.split(''), (c) => c.charCodeAt(0));
+	const dataBuffer = textEncoder.encode(splitToken[0] + '.' + splitToken[1]);
+
+	const auth0TokenVerified = await crypto.subtle.verify('RSASSA-PKCS1-v1_5', cryptoKey, signatureBuffer, dataBuffer);
+	if (!auth0TokenVerified) {
+		return new Response(
+			JSON.stringify({
+				error: 'invalid auth0Token',
+			}),
+			{
+				headers: {
+					'content-type': 'application/json',
+				},
+			}
+		);
+	}
+
 	// extract auth0 payload
-	const auth0Payload = JSON.parse(atob(auth0Token.split('.')[1]));
+	const auth0Payload = JSON.parse(atob(splitToken[1]));
 
 	return new Response(
 		JSON.stringify({
