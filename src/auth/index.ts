@@ -88,10 +88,12 @@ router.post('/extract-payload', async (req, env) => {
 	}
 
 	// verify auth0Token signature
+	const splitToken = auth0Token.split('.');
+	const kid = JSON.parse(atob(splitToken[0])).kid;
 	const textEncoder = new TextEncoder();
 	const jwksRes = await fetch(`https://${env.AUTH0_DOMAIN}/.well-known/jwks.json`);
 	const jwks = JSON.parse(await jwksRes.text());
-	const key = jwks.keys[0];
+	const key = jwks.keys.find((k: any) => k.kid === kid);
 	const cryptoKey = await crypto.subtle.importKey(
 		'jwk',
 		key,
@@ -104,7 +106,6 @@ router.post('/extract-payload', async (req, env) => {
 		false,
 		['verify']
 	);
-	const splitToken = auth0Token.split('.');
 	const base64DecodedSignature = atob(splitToken[2].replace(/_/g, '/').replace(/-/g, '+'));
 	const signatureBuffer = Uint8Array.from(base64DecodedSignature.split(''), (c) => c.charCodeAt(0));
 	const dataBuffer = textEncoder.encode(splitToken[0] + '.' + splitToken[1]);
