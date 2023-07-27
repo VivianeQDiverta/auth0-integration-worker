@@ -2,66 +2,20 @@ import { Router } from 'itty-router';
 
 export const router = Router({ base: '/api/auth' });
 
-router.get('/generate-state', async (req, env) => {
+router.get('/generate-state', async () => {
 	// generate a random state string
 	const randomNumbers = crypto.getRandomValues(new Uint8Array(32));
 	const stateKey = randomNumbers.reduce((acc, val) => acc + val.toString(16), '');
 
-	// store the state in the KV store with a 60 seconds TTL
-	// with values describing the app's state that can be added here
-	const stateValue = JSON.stringify({
+	// the state value can be anything you want to describe the app's state, as long as it's JSON serializable
+	const stateValue = {
 		createdAt: Date.now(),
-	});
-	await env.STATE.put(stateKey, stateValue, { expirationTtl: 60 });
-	return new Response(
-		JSON.stringify({
-			state: stateKey,
-		}),
-		{
-			headers: {
-				'content-type': 'application/json',
-			},
-		}
-	);
-});
-
-router.get('/verify-state', async (req, env) => {
-	const receivedStateKey = req.query.state;
-	if (!receivedStateKey) {
-		return new Response(
-			JSON.stringify({
-				error: 'missing state',
-			}),
-			{
-				headers: {
-					'content-type': 'application/json',
-				},
-			}
-		);
-	}
-
-	// check if the state exists in the KV store
-	const stateValue = await env.STATE.get(receivedStateKey, 'json');
-	if (!stateValue) {
-		return new Response(
-			JSON.stringify({
-				error: 'invalid state',
-			}),
-			{
-				headers: {
-					'content-type': 'application/json',
-				},
-				status: 400,
-			}
-		);
-	}
-
-	// delete the state from the KV store
-	await env.STATE.delete(receivedStateKey);
+	};
 
 	return new Response(
 		JSON.stringify({
-			state: JSON.stringify(stateValue), // return as string so that KurocoEdge can capture it
+			stateKey,
+			stateValue,
 		}),
 		{
 			headers: {
@@ -93,7 +47,11 @@ router.post('/extract-payload', async (req, env) => {
 
 	// verify claims
 	const now = Math.floor(Date.now() / 1000);
-	if (auth0Payload.exp < now || auth0Payload.aud !== `https://${env.API_DOMAIN}/api/v1` || auth0Payload.iss !== `https://${env.AUTH0_DOMAIN}/`) {
+	if (
+		auth0Payload.exp < now ||
+		auth0Payload.aud !== `https://${env.API_DOMAIN}/api/v1` ||
+		auth0Payload.iss !== `https://${env.AUTH0_DOMAIN}/`
+	) {
 		return new Response(
 			JSON.stringify({
 				error: 'invalid auth0Token',
