@@ -5,17 +5,17 @@ export const router = Router({ base: '/api/auth' });
 router.get('/generate-state', async (req, env) => {
 	// generate a random state string
 	const randomNumbers = crypto.getRandomValues(new Uint8Array(32));
-	const state = randomNumbers.reduce((acc, val) => acc + val.toString(16), '');
+	const stateKey = randomNumbers.reduce((acc, val) => acc + val.toString(16), '');
 
-	// store the state in the KV store with a 60 second TTL
+	// store the state in the KV store with a 60 seconds TTL
 	// with values describing the app's state that can be added here
-	const value = JSON.stringify({
+	const stateValue = JSON.stringify({
 		createdAt: Date.now(),
 	});
-	await env.STATE.put(state, value, { expirationTtl: 60 });
+	await env.STATE.put(stateKey, stateValue, { expirationTtl: 60 });
 	return new Response(
 		JSON.stringify({
-			state,
+			state: stateKey,
 		}),
 		{
 			headers: {
@@ -26,8 +26,8 @@ router.get('/generate-state', async (req, env) => {
 });
 
 router.get('/verify-state', async (req, env) => {
-	const receivedState = req.query.state;
-	if (!receivedState) {
+	const receivedStateKey = req.query.state;
+	if (!receivedStateKey) {
 		return new Response(
 			JSON.stringify({
 				error: 'missing state',
@@ -41,8 +41,8 @@ router.get('/verify-state', async (req, env) => {
 	}
 
 	// check if the state exists in the KV store
-	const state = await env.STATE.get(receivedState, 'json');
-	if (!state) {
+	const stateValue = await env.STATE.get(receivedStateKey, 'json');
+	if (!stateValue) {
 		return new Response(
 			JSON.stringify({
 				error: 'invalid state',
@@ -57,11 +57,11 @@ router.get('/verify-state', async (req, env) => {
 	}
 
 	// delete the state from the KV store
-	await env.STATE.delete(receivedState);
+	await env.STATE.delete(receivedStateKey);
 
 	return new Response(
 		JSON.stringify({
-			state: JSON.stringify(state), // return as string so that KurocoEdge can read it
+			state: JSON.stringify(stateValue), // return as string so that KurocoEdge can capture it
 		}),
 		{
 			headers: {
@@ -109,8 +109,7 @@ router.post('/extract-payload', async (req, env) => {
 	// verify auth0Token signature
 	const kid = JSON.parse(atob(splitToken[0])).kid;
 	const textEncoder = new TextEncoder();
-	// TODO: cache this request (jwks request)
-	// if the verification fails, invalidate the cache, retrieve the jwks and try the verification only once again
+	// TODO: cache this request. If the verification fails, invalidate the cache, retrieve the jwks and try the verification only once again
 	const jwksRes = await fetch(`https://${env.AUTH0_DOMAIN}/.well-known/jwks.json`);
 	const jwks = JSON.parse(await jwksRes.text());
 	const key = jwks.keys.find((k: any) => k.kid === kid);
